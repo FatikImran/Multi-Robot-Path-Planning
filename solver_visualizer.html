@@ -296,15 +296,45 @@
         }
       }
 
-      for (const robot of inputData.robots) {
+      // Group checkpoints by (x,y) to identify shared checkpoints
+      const checkpointMap = new Map();
+      for (let robotIdx = 0; robotIdx < inputData.robots.length; robotIdx++) {
+        const robot = inputData.robots[robotIdx];
         for (const [cx, cy] of robot.checkpoints) {
-          const { px, py } = toPixel(cx, cy);
-          ctx.fillStyle = CELL.checkpoint;
-          ctx.fillRect(px + 3, py + 3, cell - 6, cell - 6);
-          ctx.fillStyle = "#38bdf8";
-          ctx.font = "bold 11px Segoe UI";
-          ctx.fillText("CP", px + 6, py + 16);
+          const key = `${cx},${cy}`;
+          if (!checkpointMap.has(key)) {
+            checkpointMap.set(key, []);
+          }
+          checkpointMap.get(key).push(robotIdx);
         }
+      }
+
+      // Draw checkpoints with colored rings for each robot that has them
+      for (const [key, robotIndices] of checkpointMap.entries()) {
+        const [cx, cy] = key.split(',').map(Number);
+        const { px, py } = toPixel(cx, cy);
+
+        // Draw central light blue box
+        ctx.fillStyle = CELL.checkpoint;
+        ctx.fillRect(px + 3, py + 3, cell - 6, cell - 6);
+
+        // Draw concentric colored rings for each robot
+        for (let ringIdx = 0; ringIdx < robotIndices.length; ringIdx++) {
+          const robotIdx = robotIndices[ringIdx];
+          ctx.strokeStyle = ROBOT_COLORS[robotIdx % ROBOT_COLORS.length];
+          ctx.lineWidth = 2;
+          const ringRadius = cell * (0.35 + ringIdx * 0.1);
+          ctx.beginPath();
+          ctx.arc(px + cell / 2, py + cell / 2, ringRadius, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+
+        // Draw "CP" label - centered in the checkpoint box
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 12px Segoe UI";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("CP", px + cell / 2, py + cell / 2);
       }
 
       for (const [idx, robot] of inputData.robots.entries()) {
