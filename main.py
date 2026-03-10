@@ -281,3 +281,29 @@ def write_output(path: Path, robots: List[Robot], results: Dict[int, Optional[Li
         lines.append("")
 
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def main() -> None:
+    # Resolve files relative to this script's directory.
+    base_dir = Path(__file__).resolve().parent
+    input_path = base_dir / "input.txt"
+    output_path = base_dir / "output.txt"
+
+    try:
+        grid, robots = read_input(input_path)
+        results = plan_all(grid, robots)
+        write_output(output_path, robots, results)
+    except (FileNotFoundError, ValueError) as exc:
+        message = f"Error: {exc}"
+        output_path.write_text(message + "\n", encoding="utf-8")
+        print(message, file=sys.stderr)
+        raise SystemExit(1)
+    except Exception as exc:
+        message = f"Error: Unexpected failure: {exc}"
+        output_path.write_text(message + "\n", encoding="utf-8")
+        print(message, file=sys.stderr)
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
