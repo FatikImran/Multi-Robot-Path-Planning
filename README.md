@@ -54,6 +54,32 @@ python main.py
 
 3. Open `output.txt` to see planned paths or error messages.
 
+## Example Inputs
+The repository includes three ready-to-run input-only scenarios:
+
+- `examples/very-basic/input.txt`
+- `examples/simple/input.txt`
+- `examples/complex/input.txt`
+
+To try one of them, copy it over the root `input.txt` and then run the solver again.
+
+Windows PowerShell examples:
+
+```powershell
+Copy-Item .\examples\very-basic\input.txt .\input.txt -Force
+python main.py
+```
+
+```powershell
+Copy-Item .\examples\simple\input.txt .\input.txt -Force
+python main.py
+```
+
+```powershell
+Copy-Item .\examples\complex\input.txt .\input.txt -Force
+python main.py
+```
+
 ## Output Behavior
 ### Success format (per robot, sorted by Robot ID)
 - `Robot <ID>: Path: (x0,y0) -> ... -> (xT,yT)`
