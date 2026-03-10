@@ -73,21 +73,29 @@ python app_server.py
 ```
 
 2. Open `http://127.0.0.1:8000/solver_visualizer.html` in your browser.
-3. Use **Run Solver** or **Reload Files** in the page controls.
-4. Use **Play**, **Reset**, and the **Time** slider to follow path progress step-by-step.
+3. Use **Reload Files** to load the latest input.txt and output.txt
+4. Then Use **Run Solver** to run the solver on the latest input.txt and create the updated output.txt.
+5. Use **Play**, **Reset**, and the **Time** slider to follow path progress step-by-step.
 
 Visualizer modes:
 - `Visualizer` (default): shows solver output only.
 - `Comparison` (optional): shows reference and solver output side-by-side.
 
+**Checkpoint Visualization:**
+- Each checkpoint appears as a light blue box with a black "CP" label.
+- Colored rings indicate which robots must visit that checkpoint: one ring per robot, using that robot's color.
+- Shared checkpoints display concentric rings, making multi-robot dependencies immediately visible.
+
 ## Screenshots
-The screenshots below use the bundled complex showcase scenario.
+The screenshots below use the bundled complex showcase scenario, highlighting the interactive timeline visualizer and checkpoint indicators.
 
 ### Visualizer at Start
 ![Solver visualizer at start](docs/screenshots/visualizer-start.png)
+Initial scenario with all robots at their start positions and colored checkpoint rings showing assignments.
 
 ### Visualizer Mid-Run
 ![Solver visualizer mid-run](docs/screenshots/visualizer-mid.png)
+Mid-execution state showing partial paths (colored lines) and robots in progress toward their checkpoints.
 
 ## Notes
 - `main.py` resolves paths relative to its own directory, so keep `input.txt` in this folder.
