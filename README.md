@@ -1,4 +1,4 @@
-# Assignment 1 - Multi-Robot Path Planning
+# Multi-Robot Path Planning
 
 ## Overview
 This project solves a grid-based multi-robot path planning problem using a single search-based planner (**BFS**).
@@ -20,14 +20,29 @@ The solver reads from `input.txt` and writes results to `output.txt`.
 
 ## Project Files
 - `main.py`: Primary solver implementation.
-- `input.txt`: Input instance.
+- `input.txt`: Active input instance used by the solver and visualizer.
+- `complex_input.txt`: Bundled showcase scenario covering multiple robots, ordered checkpoints, obstacles, one-way cells, and reservation-aware planning.
 - `output.txt`: Generated output.
 - `reference_output.txt`: Example/reference output.
-- `animated_comparison.html`: Optional visualization UI for comparing outputs.
+- `solver_visualizer.html`: Interactive timeline visualizer for solver paths (default mode: solver-only).
 - `app_server.py`: Optional local server to run solver from the visualization page.
 
 ## Requirements
 - Python 3.10+ (standard library only; no external packages required).
+
+## Demo
+The repository ships with a more complex showcase case already loaded into `input.txt`.
+
+Quick start:
+
+```bash
+python main.py
+python app_server.py
+```
+
+Then open `http://127.0.0.1:8000/solver_visualizer.html` in your browser.
+
+If you edit `input.txt` and want to restore the bundled showcase case later, copy the contents of `complex_input.txt` back into `input.txt` and run the solver again.
 
 ## How to Run
 1. Place/edit your problem instance in `input.txt`.
@@ -48,8 +63,8 @@ python main.py
 ### Failure format
 - `Error: No valid path found for Robot <ID>`
 
-## Optional: Animated Comparison Viewer
-If you want to visually compare `reference_output.txt` and `output.txt`:
+## Solver Visualizer
+Use the visualizer to inspect how paths are achieved over time:
 
 1. Start the local server:
 
@@ -57,10 +72,24 @@ If you want to visually compare `reference_output.txt` and `output.txt`:
 python app_server.py
 ```
 
-2. Open `http://127.0.0.1:8000/animated_comparison.html` in your browser.
+2. Open `http://127.0.0.1:8000/solver_visualizer.html` in your browser.
 3. Use **Run Solver** or **Reload Files** in the page controls.
+4. Use **Play**, **Reset**, and the **Time** slider to follow path progress step-by-step.
+
+Visualizer modes:
+- `Visualizer` (default): shows solver output only.
+- `Comparison` (optional): shows reference and solver output side-by-side.
+
+## Screenshots
+The screenshots below use the bundled complex showcase scenario.
+
+### Visualizer at Start
+![Solver visualizer at start](docs/screenshots/visualizer-start.png)
+
+### Visualizer Mid-Run
+![Solver visualizer mid-run](docs/screenshots/visualizer-mid.png)
 
 ## Notes
 - `main.py` resolves paths relative to its own directory, so keep `input.txt` in this folder.
 - Collision handling blocks same-cell occupancy at the same time step.
-- Edge-swap conflict handling is intentionally not required for this assignment.
+- Edge-swap conflict handling is intentionally not included in this version.
