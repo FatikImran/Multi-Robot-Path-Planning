@@ -1,0 +1,16 @@
+# Python environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local/editor artifacts
+.vscode/
+.DS_Store
+
+# Submission-only copies (not part of portfolio repo)
+C_23I-0655_Muhammad Fatik/
+C_23I-0655_Muhammad Fatik.zip
+
+# Legacy course prompt artifacts
+Assignment 1.pdf
+Assignment 1.txt
