@@ -87,15 +87,23 @@ Visualizer modes:
 - Shared checkpoints display concentric rings, making multi-robot dependencies immediately visible.
 
 ## Screenshots
-The screenshots below use the bundled complex showcase scenario, highlighting the interactive timeline visualizer and checkpoint indicators.
+The screenshots below show both a smaller baseline scenario and the current larger stress case loaded into `input.txt`.
 
-### Visualizer at Start
-![Solver visualizer at start](docs/screenshots/visualizer-start.png)
-Initial scenario with all robots at their start positions and colored checkpoint rings showing assignments.
+### Simple Example at Start
+![Simple visualizer at start](docs/screenshots/simple-visualizer-start.png)
+Baseline scenario at `t = 0`, showing the initial layout and checkpoint assignments.
 
-### Visualizer Mid-Run
-![Solver visualizer mid-run](docs/screenshots/visualizer-mid.png)
-Mid-execution state showing partial paths (colored lines) and robots in progress toward their checkpoints.
+### Simple Example Mid-Run
+![Simple visualizer mid-run](docs/screenshots/simple-visualizer-mid.png)
+Baseline scenario during execution, with partial paths visible across the grid.
+
+### Complex Example at Start
+![Complex visualizer at start](docs/screenshots/complex-visualizer-start.png)
+Current 8-robot scenario at `t = 0`, including denser routing, more checkpoints, and multiple robot priorities.
+
+### Complex Example Mid-Run
+![Complex visualizer mid-run](docs/screenshots/complex-visualizer-mid.png)
+Current 8-robot scenario during execution, showing concurrent progress, reservations, and robots that fail to find a path.
 
 ## Notes
 - `main.py` resolves paths relative to its own directory, so keep `input.txt` in this folder.
