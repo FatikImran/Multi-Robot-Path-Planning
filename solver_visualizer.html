@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Robot Path Planning Solver Visualizer</title>
+  <style>
+    :root {
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(180deg, #020617, #0b1220 40%, #0f172a);
+      color: var(--text);
+      padding: 20px;
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .subtitle { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+      background: rgba(17,24,39,0.75); border: 1px solid #23314a; border-radius: 12px;
+      padding: 12px; margin-bottom: 12px;
+    }
+    button, select, input[type="range"] {
+      background: #0b1220; color: var(--text); border: 1px solid #334155;
+      border-radius: 8px; padding: 6px 10px; font-size: 14px;
+    }
+    button { cursor: pointer; }
+    .time { min-width: 140px; font-variant-numeric: tabular-nums; color: #cbd5e1; font-weight: 600; }
+    .status {
+      margin-bottom: 14px; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid #334155; background: rgba(15,23,42,0.75); color: #cbd5e1; font-size: 13px;
+    }
+    .boards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px;
+    }
+    .panel {
+      background: rgba(17,24,39,0.82); border: 1px solid #243247; border-radius: 14px; padding: 12px;
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 16px; }
+    .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    canvas {
+      width: 100%; max-width: 520px; height: auto; border-radius: 10px; border: 1px solid #223049;
+      background: #0b1220; display: block; margin: 0 auto 8px;
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; color: #cbd5e1; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Multi-Robot Path Planning: Solver Visualizer</h1>
+  <p class="subtitle">Visualizes solver output from input.txt + output.txt (optional comparison with reference_output.txt).</p>
+
+  <div class="controls">
+    <button id="toggleMode">Mode: Visualizer</button>
+    <button id="runSolver">Run Solver</button>
+    <button id="reloadFiles">Reload Files</button>
+    <button id="playPause">Play</button>
+    <button id="reset">Reset</button>
+
+    <label>Speed
+      <select id="speed">
+        <option value="1200">0.5x</option>
+        <option value="700" selected>1x</option>
+        <option value="400">1.75x</option>
+        <option value="250">3x</option>
+      </select>
+    </label>
+
+    <label>Time
+      <input id="timeSlider" type="range" min="0" max="1" value="0" />
+    </label>
+
+    <div class="time" id="timeText">t = 0</div>
+  </div>
+
+  <div class="status" id="status">Loading files...</div>
+
+  <div class="boards">
+    <div class="panel" id="leftPanel">
+      <h2 id="leftTitle">Reference Output</h2>
+      <div class="meta" id="leftMeta">—</div>
+      <canvas id="canvasLeft" width="560" height="560"></canvas>
+      <div class="legend" id="legendLeft"></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="rightTitle">Solver Output</h2>
+      <div class="meta" id="rightMeta">—</div>
+      <canvas id="canvasRight" width="560" height="560"></canvas>
+      <div class="legend" id="legendRight"></div>
+    </div>
+  </div>
+
+  <p class="foot">Workflow: edit input.txt, click Run Solver, then watch step-by-step path execution. Optional baseline: reference_output.txt.</p>
+
+  <script>
+    const ROBOT_COLORS = ["#22c55e", "#f59e0b", "#38bdf8", "#ef4444", "#a78bfa", "#14b8a6", "#eab308", "#ec4899"];
+    const CELL = {
+      obstacle: "#7f1d1d",
+      free: "#0f1a2e",
+      checkpoint: "rgba(56, 189, 248, 0.22)",
+      goal: "#a78bfa",
+      line: "#334155",
+      arrow: "#f1f5f9"
+    };
+
+    const slider = document.getElementById("timeSlider");
+    const timeText = document.getElementById("timeText");
+    const playPauseBtn = document.getElementById("playPause");
+    const resetBtn = document.getElementById("reset");
+    const speedSelect = document.getElementById("speed");
+    const toggleModeBtn = document.getElementById("toggleMode");
+    const runSolverBtn = document.getElementById("runSolver");
+    const reloadBtn = document.getElementById("reloadFiles");
+    const statusEl = document.getElementById("status");
+    const leftMeta = document.getElementById("leftMeta");
+    const rightMeta = document.getElementById("rightMeta");
+    const leftPanel = document.getElementById("leftPanel");
+    const rightTitle = document.getElementById("rightTitle");
+
+    let t = 0;
+    let maxT = 0;
+    let timer = null;
+    let displayMode = "visualizer";
+
+    let model = {
+      input: null,
+      leftPaths: new Map(),
+      rightPaths: new Map(),
+      robotOrder: []
+    };
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.style.borderColor = isError ? "#7f1d1d" : "#334155";
+      statusEl.style.color = isError ? "#fecaca" : "#cbd5e1";
+      statusEl.style.background = isError ? "rgba(127,29,29,0.25)" : "rgba(15,23,42,0.75)";
+    }
+
+    function applyDisplayMode() {
+      if (displayMode === "visualizer") {
+        leftPanel.style.display = "none";
+        rightTitle.textContent = "Solver Visualization";
+        toggleModeBtn.textContent = "Mode: Visualizer";
+      } else {
+        leftPanel.style.display = "";
+        rightTitle.textContent = "Solver Output";
+        toggleModeBtn.textContent = "Mode: Comparison";
+      }
+    }
+
+    function splitTokens(text) {
+      return text.split(/\s+/).filter(Boolean);
+    }
+
+    function parseInput(text) {
+      const lines = text.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
+      if (lines.length < 2) throw new Error("input.txt is incomplete");
+
+      const first = lines[0].split(/\s+/).map(Number);
+      if (first.length !== 2 || Number.isNaN(first[0]) || Number.isNaN(first[1])) {
+        throw new Error("input.txt first line must be: N M");
+      }
+      const [height, width] = first;
+      if (lines.length < 1 + height) throw new Error("input.txt missing grid rows");
+
+      const rowsTopDown = lines.slice(1, 1 + height);
+      rowsTopDown.forEach(row => {
+        if (row.length !== width) throw new Error("grid row width mismatch in input.txt");
+      });
+
+      const tokenTail = splitTokens(lines.slice(1 + height).join(" "));
+      if (tokenTail.length === 0) throw new Error("robot data missing in input.txt");
+
+      let i = 0;
+      const R = Number(tokenTail[i++]);
+      const robots = [];
+
+      for (let r = 0; r < R; r++) {
+        const id = Number(tokenTail[i++]);
+        const priority = Number(tokenTail[i++]);
+        const energy = Number(tokenTail[i++]);
+        const sx = Number(tokenTail[i++]);
+        const sy = Number(tokenTail[i++]);
+        const gx = Number(tokenTail[i++]);
+        const gy = Number(tokenTail[i++]);
+        const k = Number(tokenTail[i++]);
+        const checkpoints = [];
+        for (let c = 0; c < k; c++) {
+          const cx = Number(tokenTail[i++]);
+          const cy = Number(tokenTail[i++]);
+          checkpoints.push([cx, cy]);
+        }
+        robots.push({ id, priority, energy, start: [sx, sy], goal: [gx, gy], checkpoints });
+      }
+
+      return { height, width, rowsTopDown, robots };
+    }
+
+    function parsePathCoords(pathText) {
+      const coords = [];
+      const regex = /\((\d+)\s*,\s*(\d+)\)/g;
+      let m;
+      while ((m = regex.exec(pathText)) !== null) {
+        coords.push([Number(m[1]), Number(m[2])]);
+      }
+      return coords;
+    }
+
+    function parseOutput(text) {
+      const map = new Map();
+      const robotBlocks = text.split(/\r?\n\s*\r?\n/);
+      for (const block of robotBlocks) {
+        const idMatch = block.match(/Robot\s+(\d+)\s*:/i);
+        const pathLineMatch = block.match(/Path\s*:\s*([^\n\r]+)/i);
+        if (!idMatch || !pathLineMatch) continue;
+        const robotId = Number(idMatch[1]);
+        const coords = parsePathCoords(pathLineMatch[1]);
+        if (coords.length > 0) map.set(robotId, coords);
+      }
+      return map;
+    }
+
+    function getCellChar(inputData, x, y) {
+      const rowIndex = inputData.height - 1 - y;
+      return inputData.rowsTopDown[rowIndex][x];
+    }
+
+    function getPosAt(path, step) {
+      const idx = Math.min(step, path.length - 1);
+      return path[idx];
+    }
+
+    function drawArrow(ctx, cx, cy, dir, size) {
+      ctx.strokeStyle = CELL.arrow;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (dir === "^") {
+        ctx.moveTo(cx, cy + size / 3); ctx.lineTo(cx, cy - size / 3);
+        ctx.moveTo(cx, cy - size / 3); ctx.lineTo(cx - size / 5, cy - size / 6);
+        ctx.moveTo(cx, cy - size / 3); ctx.lineTo(cx + size / 5, cy - size / 6);
+      } else if (dir === "v") {
+        ctx.moveTo(cx, cy - size / 3); ctx.lineTo(cx, cy + size / 3);
+        ctx.moveTo(cx, cy + size / 3); ctx.lineTo(cx - size / 5, cy + size / 6);
+        ctx.moveTo(cx, cy + size / 3); ctx.lineTo(cx + size / 5, cy + size / 6);
+      } else if (dir === "<") {
+        ctx.moveTo(cx + size / 3, cy); ctx.lineTo(cx - size / 3, cy);
+        ctx.moveTo(cx - size / 3, cy); ctx.lineTo(cx - size / 6, cy - size / 5);
+        ctx.moveTo(cx - size / 3, cy); ctx.lineTo(cx - size / 6, cy + size / 5);
+      } else if (dir === ">") {
+        ctx.moveTo(cx - size / 3, cy); ctx.lineTo(cx + size / 3, cy);
+        ctx.moveTo(cx + size / 3, cy); ctx.lineTo(cx + size / 6, cy - size / 5);
+        ctx.moveTo(cx + size / 3, cy); ctx.lineTo(cx + size / 6, cy + size / 5);
+      }
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    function drawScenario(canvasId, pathsMap, step) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext("2d");
+      const inputData = model.input;
+      if (!inputData) return;
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const pad = 28;
+      const cell = Math.floor((Math.min(W, H) - 2 * pad) / Math.max(inputData.width, inputData.height));
+
+      ctx.clearRect(0, 0, W, H);
+
+      const toPixel = (x, y) => ({
+        px: pad + x * cell,
+        py: pad + (inputData.height - 1 - y) * cell
+      });
+
+      for (let y = 0; y < inputData.height; y++) {
+        for (let x = 0; x < inputData.width; x++) {
+          const { px, py } = toPixel(x, y);
+          const ch = getCellChar(inputData, x, y);
+          const blocked = ch === "X";
+          ctx.fillStyle = blocked ? CELL.obstacle : CELL.free;
+          ctx.fillRect(px, py, cell, cell);
+          ctx.strokeStyle = CELL.line;
+          ctx.strokeRect(px, py, cell, cell);
+
+          if (["^", "v", "<", ">"].includes(ch)) {
+            drawArrow(ctx, px + cell / 2, py + cell / 2, ch, cell * 0.7);
+          }
+        }
+      }
+
+      for (const robot of inputData.robots) {
+        for (const [cx, cy] of robot.checkpoints) {
+          const { px, py } = toPixel(cx, cy);
+          ctx.fillStyle = CELL.checkpoint;
+          ctx.fillRect(px + 3, py + 3, cell - 6, cell - 6);
+          ctx.fillStyle = "#38bdf8";
+          ctx.font = "bold 11px Segoe UI";
+          ctx.fillText("CP", px + 6, py + 16);
+        }
+      }
+
+      for (const [idx, robot] of inputData.robots.entries()) {
+        const [gx, gy] = robot.goal;
+        const { px, py } = toPixel(gx, gy);
+        ctx.strokeStyle = ROBOT_COLORS[idx % ROBOT_COLORS.length];
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 5, py + 5, cell - 10, cell - 10);
+      }
+      ctx.lineWidth = 1;
+
+      model.robotOrder.forEach((robotId, idx) => {
+        const path = pathsMap.get(robotId);
+        if (!path || path.length < 2) return;
+        const end = Math.min(step, path.length - 1);
+        if (end <= 0) return;
+
+        ctx.strokeStyle = ROBOT_COLORS[idx % ROBOT_COLORS.length];
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.45;
+        ctx.beginPath();
+        for (let i = 0; i <= end; i++) {
+          const [x, y] = path[i];
+          const { px, py } = toPixel(x, y);
+          const centerX = px + cell / 2;
+          const centerY = py + cell / 2;
+          if (i === 0) ctx.moveTo(centerX, centerY);
+          else ctx.lineTo(centerX, centerY);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 1;
+      });
+
+      model.robotOrder.forEach((robotId, idx) => {
+        const path = pathsMap.get(robotId);
+        if (!path || path.length === 0) return;
+        const [x, y] = getPosAt(path, step);
+        const { px, py } = toPixel(x, y);
+        const cx = px + cell / 2;
+        const cy = py + cell / 2;
+
+        ctx.fillStyle = ROBOT_COLORS[idx % ROBOT_COLORS.length];
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.max(8, Math.floor(cell * 0.22)), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#0b1220";
+        ctx.font = "bold 11px Segoe UI";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(robotId), cx, cy);
+      });
+
+      ctx.fillStyle = "#9fb3d6";
+      ctx.font = "11px Segoe UI";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      for (let y = 0; y < inputData.height; y++) {
+        for (let x = 0; x < inputData.width; x++) {
+          const { px, py } = toPixel(x, y);
+          ctx.fillText(`${x},${y}`, px + 2, py + cell - 13);
+        }
+      }
+    }
+
+    function renderLegend(targetId) {
+      const legend = document.getElementById(targetId);
+      const base = [
+        `<span class="chip"><span class="dot" style="background:${CELL.obstacle}"></span>Obstacle</span>`,
+        `<span class="chip"><span class="dot" style="background:#38bdf8"></span>Checkpoint</span>`,
+        `<span class="chip"><span class="dot" style="background:${CELL.goal}"></span>Goal (uses robot color)</span>`
+      ];
+
+      const robots = model.robotOrder.map((id, idx) => (
+        `<span class="chip"><span class="dot" style="background:${ROBOT_COLORS[idx % ROBOT_COLORS.length]}"></span>Robot ${id}</span>`
+      ));
+
+      legend.innerHTML = [...robots, ...base].join("");
+    }
+
+    function summarize(pathsMap) {
+      return model.robotOrder
+        .map(id => {
+          const p = pathsMap.get(id);
+          if (!p) return `R${id}: no path`;
+          return `R${id}: ${Math.max(0, p.length - 1)} steps`;
+        })
+        .join(" | ");
+    }
+
+    function recomputeTimeline() {
+      let newMax = 0;
+      for (const id of model.robotOrder) {
+        const p1 = model.leftPaths.get(id);
+        const p2 = model.rightPaths.get(id);
+        if (p1) newMax = Math.max(newMax, p1.length - 1);
+        if (p2) newMax = Math.max(newMax, p2.length - 1);
+      }
+      maxT = newMax;
+      slider.max = String(maxT);
+      t = Math.min(t, maxT);
+    }
+
+    function render() {
+      slider.value = String(t);
+      timeText.textContent = `t = ${t}`;
+      drawScenario("canvasLeft", model.leftPaths, t);
+      drawScenario("canvasRight", model.rightPaths, t);
+    }
+
+    function stop() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      playPauseBtn.textContent = "Play";
+    }
+
+    function play() {
+      stop();
+      const ms = Number(speedSelect.value);
+      timer = setInterval(() => {
+        if (t >= maxT) {
+          stop();
+          return;
+        }
+        t += 1;
+        render();
+      }, ms);
+      playPauseBtn.textContent = "Pause";
+    }
+
+    async function fetchText(path, required = true) {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) {
+        if (!required) return null;
+        throw new Error(`Failed to load ${path}`);
+      }
+      return response.text();
+    }
+
+    async function runSolver() {
+      stop();
+      runSolverBtn.disabled = true;
+      reloadBtn.disabled = true;
+      setStatus("Running main.py...");
+
+      try {
+        const response = await fetch("/run-solver", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        });
+
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+
+        if (!response.ok || !payload || !payload.ok) {
+          const errMsg = payload?.message || `Failed to run solver (HTTP ${response.status})`;
+          const stderr = payload?.stderr ? ` | ${payload.stderr.trim()}` : "";
+          throw new Error(`${errMsg}${stderr}`);
+        }
+
+        const code = payload.returncode;
+        setStatus(`Solver finished (exit code ${code}). Reloading files...`);
+        await reloadFromFiles();
+      } catch (err) {
+        setStatus(err.message || "Solver execution failed.", true);
+      } finally {
+        runSolverBtn.disabled = false;
+        reloadBtn.disabled = false;
+      }
+    }
+
+    async function reloadFromFiles() {
+      stop();
+      setStatus("Loading input/output files...");
+
+      try {
+        const [inputText, rightOutputText, leftOutputText] = await Promise.all([
+          fetchText("./input.txt", true),
+          fetchText("./output.txt", true),
+          fetchText("./reference_output.txt", false)
+        ]);
+
+        model.input = parseInput(inputText);
+        model.rightPaths = parseOutput(rightOutputText);
+        model.leftPaths = leftOutputText ? parseOutput(leftOutputText) : new Map();
+
+        model.robotOrder = [...new Set(model.input.robots.map(r => r.id))].sort((a, b) => a - b);
+
+        if (!leftOutputText || model.leftPaths.size === 0) {
+          model.leftPaths = model.rightPaths;
+          setStatus("reference_output.txt not found (or empty). Showing output.txt on both sides.");
+        } else {
+          setStatus("Loaded input.txt, reference_output.txt, and output.txt successfully.");
+        }
+
+        leftMeta.textContent = summarize(model.leftPaths);
+        rightMeta.textContent = summarize(model.rightPaths);
+        renderLegend("legendLeft");
+        renderLegend("legendRight");
+
+        recomputeTimeline();
+        t = 0;
+        render();
+      } catch (err) {
+        setStatus(err.message || "Failed to load files.", true);
+      }
+    }
+
+    playPauseBtn.addEventListener("click", () => {
+      if (timer) stop();
+      else play();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      stop();
+      t = 0;
+      render();
+    });
+
+    reloadBtn.addEventListener("click", reloadFromFiles);
+    runSolverBtn.addEventListener("click", runSolver);
+
+    toggleModeBtn.addEventListener("click", () => {
+      displayMode = displayMode === "visualizer" ? "comparison" : "visualizer";
+      applyDisplayMode();
+    });
+
+    slider.addEventListener("input", (e) => {
+      t = Number(e.target.value);
+      render();
+    });
+
+    speedSelect.addEventListener("change", () => {
+      if (timer) play();
+    });
+
+    applyDisplayMode();
+    reloadFromFiles();
+  </script>
+</body>
+</html>
