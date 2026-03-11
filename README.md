@@ -61,6 +61,8 @@ The repository includes three ready-to-run input-only scenarios:
 - `examples/simple/input.txt`
 - `examples/complex/input.txt`
 
+If you are confused about the structure of `input.txt`, review the **Input.txt Explanation** screenshot at the end of this README.
+
 To try one of them, copy it over the root `input.txt` and then run the solver again.
 
 Windows PowerShell examples:
@@ -130,6 +132,10 @@ Current 8-robot scenario at `t = 0`, including denser routing, more checkpoints,
 ### Complex Example Mid-Run
 ![Complex visualizer mid-run](docs/screenshots/complex-visualizer-mid.png)
 Current 8-robot scenario during execution, showing concurrent progress, reservations, and robots that fail to find a path.
+
+### Input.txt Explanation
+![Input.txt explanation](docs/screenshots/input.txt%20explanation.png)
+Reference image explaining how to read and interpret the `input.txt` structure.
 
 ## Notes
 - `main.py` resolves paths relative to its own directory, so keep `input.txt` in this folder.
